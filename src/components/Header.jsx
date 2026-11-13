@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { CalendarDays, Heart, Search, ShoppingBag } from "lucide-react";
-import categories from "../data/categories";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useWishlist } from "../context/WishlistContext";
+import useCatalog from "../hooks/useCatalog";
 
 function Header() {
   const [text, setText] = useState("");
@@ -12,6 +12,7 @@ function Header() {
   const { cartCount } = useCart();
   const { user, logout } = useAuth();
   const { wishlistIds } = useWishlist();
+  const { categories } = useCatalog();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -57,8 +58,15 @@ function Header() {
           </NavLink>
           {user ? (
             <>
-              <NavLink to="/orders" className="action-link"><CalendarDays size={16} aria-hidden="true" /> My Bookings</NavLink>
-              <span className="user-name">Hi, {user.name.split(" ")[0]}</span>
+              {user.role === "admin" ? (
+                <NavLink to="/admin" className="action-link">Admin dashboard</NavLink>
+              ) : (
+                <>
+                  {user.role === "organizer" && <NavLink to="/organizer" className="action-link">Organizer dashboard</NavLink>}
+                  <NavLink to="/orders" className="action-link"><CalendarDays size={16} aria-hidden="true" /> {user.role === "customer" ? "My Bookings" : "Bookings"}</NavLink>
+                </>
+              )}
+              <span className="user-name">Hi, {user.full_name.split(" ")[0]}</span>
               <button className="link-btn" onClick={handleLogout}>Logout</button>
             </>
           ) : (

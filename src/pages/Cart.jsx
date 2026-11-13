@@ -7,16 +7,20 @@ import EventArt from "../components/EventArt";
 
 function Cart() {
   const {
-    cart, totals, couponCode, removeFromCart, increaseQty, decreaseQty, applyCoupon, removeCoupon,
+    cart, totals, removeFromCart, increaseQty, decreaseQty, error, loading,
   } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [code, setCode] = useState("");
-  const [msg, setMsg] = useState(null);
-
+  const [actionError, setActionError] = useState("");
+  const runAction = async (action) => {
+    setActionError("");
+    try { await action(); } catch (requestError) { setActionError(requestError.message); }
+  };
+  if (loading) return <div className="page empty-text" role="status">Loading your cart…</div>;
   if (cart.length === 0) {
     return (
       <div className="page center empty-page">
+        {(error || actionError) && <p className="error" role="alert">{actionError || error}</p>}
         <h2>Your cart is empty 🛒</h2>
         <p>Add decoration, catering or a full package to get started.</p>
         <Link to="/services" className="btn">Browse services</Link>
@@ -24,61 +28,35 @@ function Cart() {
     );
   }
 
-  const handleCoupon = (e) => {
-    e.preventDefault();
-    setMsg(applyCoupon(code));
-    setCode("");
-  };
-
   return (
     <div className="page">
       <h1 className="page-title">Your Cart</h1>
+      {(error || actionError) && <p className="error" role="alert">{actionError || error}</p>}
       <div className="cart-layout">
         <div className="cart-items">
           {cart.map((item) => (
             <div key={item.id} className="cart-item">
               <EventArt service={item} className="cart-art" />
               <div className="cart-info">
-                <Link to={`/service/${item.id}`}><h4>{item.name}</h4></Link>
+                <Link to={`/service/${item.catalogKey}`}><h4>{item.name}</h4></Link>
                 <p>{formatINR(item.price)} {item.unit}</p>
               </div>
               <div className="qty">
-                <button onClick={() => decreaseQty(item.id)} aria-label="Decrease">−</button>
+                <button onClick={() => runAction(() => decreaseQty(item.id))} aria-label="Decrease" disabled={item.unit === "per event"}>−</button>
                 <span>{item.quantity}</span>
-                <button onClick={() => increaseQty(item.id)} aria-label="Increase">+</button>
+                <button onClick={() => runAction(() => increaseQty(item.id))} aria-label="Increase" disabled={item.unit === "per event"}>+</button>
               </div>
               <p className="line-total">{formatINR(item.price * item.quantity)}</p>
-              <button className="remove" onClick={() => removeFromCart(item.id)}>Remove</button>
+              <button className="remove" onClick={() => runAction(() => removeFromCart(item.id))}>Remove</button>
             </div>
           ))}
         </div>
 
         <aside className="summary">
           <h3>Order Summary</h3>
-
-          <form className="coupon" onSubmit={handleCoupon}>
-            <input
-              placeholder="Coupon code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              aria-label="Coupon code"
-            />
-            <button className="btn btn-small" type="submit" disabled={!code.trim()}>Apply</button>
-          </form>
-          {msg && <p className={msg.success ? "ok-text" : "error"}>{msg.message}</p>}
-          {couponCode && (
-            <p className="coupon-applied">
-              <b>{couponCode}</b> applied <button className="link-btn" onClick={removeCoupon}>remove</button>
-            </p>
-          )}
-          <p className="hint">Try EVENT10 or WELCOME500</p>
-
           <div className="row"><span>Subtotal</span><span>{formatINR(totals.subtotal)}</span></div>
-          {totals.discount > 0 && (
-            <div className="row green"><span>Discount</span><span>− {formatINR(totals.discount)}</span></div>
-          )}
-          <div className="row"><span>GST (18%)</span><span>{formatINR(totals.gst)}</span></div>
           <div className="row total"><span>Total</span><span>{formatINR(totals.total)}</span></div>
+          <p className="hint">Final booking amounts are calculated from the selected services.</p>
 
           <button
             className="btn full"

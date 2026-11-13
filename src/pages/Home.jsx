@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BadgeCheck, Headset, Layers3 } from "lucide-react";
-import categories from "../data/categories";
-import services from "../data/services";
 import testimonials from "../data/testimonials";
 import CategoryCard from "../components/CategoryCard";
 import ServiceGrid from "../components/ServiceGrid";
+import useCatalog from "../hooks/useCatalog";
 
 const steps = [
   { title: "Choose an occasion", text: "Start with a wedding, birthday, baby shower or another celebration." },
@@ -15,9 +14,17 @@ const steps = [
 ];
 
 function Home() {
-  const [eventType, setEventType] = useState("wedding");
+  const { categories, services, loading, error } = useCatalog();
+  const [eventType, setEventType] = useState("");
   const navigate = useNavigate();
-  const featured = services.filter((s) => s.featured);
+  useEffect(() => {
+    if (!categories.some((category) => category.slug === eventType) && categories.length) {
+      setEventType(categories[0].slug);
+    }
+  }, [categories, eventType]);
+  const featured = services.filter((s) => s.tag).slice(0, 4);
+  const heroCategory = categories[categories.length - 1] || categories[0];
+  const detailCategory = categories[0];
 
   return (
     <div>
@@ -39,20 +46,20 @@ function Home() {
             <select value={eventType} onChange={(e) => setEventType(e.target.value)} aria-label="Event type">
               {categories.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
             </select>
-            <button className="btn" type="submit">Explore services <span aria-hidden="true">→</span></button>
+            <button className="btn" type="submit" disabled={!eventType}>Explore services <span aria-hidden="true">→</span></button>
           </form>
           <div className="hero-stats">
-            <div><b>500+</b><span>celebrations planned</span></div>
+            <div><b>{categories.length}+</b><span>event categories</span></div>
             <div><b>{services.length}</b><span>services to explore</span></div>
             <div><b>4.8 <span aria-hidden="true">★</span></b><span>average rating</span></div>
           </div>
         </div>
         <div className="hero-art">
           <div className="hero-photo hero-photo-main">
-            <img src={categories[5].image} alt="Professionally coordinated corporate event" />
+            {heroCategory?.image && <img src={heroCategory.image} alt={`Professionally coordinated ${heroCategory.name.toLowerCase()} event`} />}
           </div>
           <div className="hero-photo hero-photo-detail">
-            <img src={categories[0].image} alt="Elegant wedding reception setup" />
+            {detailCategory?.image && <img src={detailCategory.image} alt={`${detailCategory.name} event setup`} />}
           </div>
           <div className="hero-photo-note">
             <span className="photo-note-mark" aria-hidden="true">E</span>
@@ -62,6 +69,8 @@ function Home() {
         </div>
       </section>
 
+      {error && <p className="page error" role="alert">Could not load the live catalog: {error}</p>}
+      {loading && <p className="page empty-text" role="status">Loading the latest event categories and packages…</p>}
       <section className="home-promises" aria-label="Why plan with Eventora">
         <div><span aria-hidden="true"><Layers3 size={19} /></span><p><b>Easy to compare</b><small>Clear packages and prices</small></p></div>
         <div><span aria-hidden="true"><BadgeCheck size={19} /></span><p><b>Made for your moment</b><small>Options for every occasion</small></p></div>
@@ -93,7 +102,7 @@ function Home() {
           </div>
           <Link to="/services" className="text-link">See every package <span aria-hidden="true">→</span></Link>
         </div>
-        <ServiceGrid services={featured} />
+        {!loading && !error && <ServiceGrid services={featured} />}
       </section>
 
       <section className="section alt">

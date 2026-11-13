@@ -16,6 +16,8 @@ import Wishlist from "./pages/Wishlist";
 import PlanEvent from "./pages/PlanEvent";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import AdminDashboard from "./pages/AdminDashboard";
+import OrganizerDashboard from "./pages/OrganizerDashboard";
 
 function App() {
   return (
@@ -28,11 +30,13 @@ function App() {
           <Route path="/services" element={<Services />} />
           <Route path="/events/:slug" element={<CategoryPage />} />
           <Route path="/service/:id" element={<ServiceDetails />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/wishlist" element={<Wishlist />} />
-          <Route path="/plan" element={<PlanEvent />} />
+          <Route path="/cart" element={<ProtectedRoute role="customer"><Cart /></ProtectedRoute>} />
+          <Route path="/wishlist" element={<ProtectedRoute role="customer"><Wishlist /></ProtectedRoute>} />
+          <Route path="/plan" element={<ProtectedRoute role="customer"><PlanEvent /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
-          <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/organizer" element={<ProtectedRoute role="organizer"><OrganizerDashboard /></ProtectedRoute>} />
+          <Route path="/checkout" element={<ProtectedRoute role="customer"><Checkout /></ProtectedRoute>} />
           <Route path="/order-success/:id" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />

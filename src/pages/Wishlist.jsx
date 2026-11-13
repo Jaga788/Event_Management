@@ -1,11 +1,15 @@
 import { Link } from "react-router-dom";
-import services from "../data/services";
 import { useWishlist } from "../context/WishlistContext";
 import ServiceGrid from "../components/ServiceGrid";
+import useCatalog from "../hooks/useCatalog";
 
 function Wishlist() {
-  const { wishlistIds } = useWishlist();
+  const { wishlistIds, error: wishlistError } = useWishlist();
+  const { services, loading, error } = useCatalog();
   const saved = services.filter((s) => wishlistIds.includes(s.id));
+
+  if (loading) return <div className="page empty-text" role="status">Loading your saved services…</div>;
+  if (error || wishlistError) return <div className="page error" role="alert">Could not load saved services: {error || wishlistError}</div>;
 
   if (saved.length === 0) {
     return (

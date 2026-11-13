@@ -14,34 +14,45 @@ function Login() {
   const location = useLocation();
   const goBackTo = location.state?.from || "/";
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
 
-    const result = isSignup ? signup(name, email, password) : login(email, password);
-    if (result.success) navigate(goBackTo, { replace: true });
-    else setError(result.message);
+    try {
+      const currentUser = isSignup
+        ? await signup(name, email, password)
+        : await login(email, password);
+      navigate(
+        goBackTo !== "/" ? goBackTo
+          : currentUser?.role === "admin" ? "/admin"
+            : currentUser?.role === "organizer" ? "/organizer" : "/",
+        { replace: true },
+      );
+    } catch (requestError) {
+      setError(requestError.message || "Unable to authenticate. Please try again.");
+    }
   };
 
   return (
     <div className="login-page">
       <form className="login-box" onSubmit={handleSubmit}>
         <div className="brand-mark big">E</div>
-        <h2>{isSignup ? "Create Account" : "Welcome Back"}</h2>
-        <p className="muted">{isSignup ? "Join Eventora to book your events." : "Login to manage your bookings."}</p>
+        <p className="eyebrow">EVENTORA · EVENT MANAGEMENT</p>
+        <h2>{isSignup ? "Your next event starts here" : "Welcome back"}</h2>
+        <p className="muted">{isSignup ? "Create a customer account to plan and book with confidence." : "Sign in to manage your events and bookings."}</p>
 
         {isSignup && (
-          <input type="text" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input type="text" placeholder="Full name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
         )}
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input type="password" placeholder="Password (min 6 characters)" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <input type="email" placeholder="Email address" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <input type="password" placeholder="Password (at least 8 characters)" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} maxLength={128} required />
 
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
 
         <button className="btn full" type="submit">{isSignup ? "Sign Up" : "Login"}</button>
 
@@ -51,6 +62,7 @@ function Login() {
             {isSignup ? "Login" : "Sign Up"}
           </button>
         </p>
+        {isSignup && <p className="hint">New accounts are registered as customers. Admins can assign organizer access.</p>}
       </form>
     </div>
   );

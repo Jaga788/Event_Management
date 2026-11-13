@@ -1,144 +1,120 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import categories from "../data/categories";
+import { api } from "../api";
+import useCatalog from "../hooks/useCatalog";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useOrders } from "../context/OrderContext";
 import { formatINR, tomorrowISO } from "../utils/format";
 
-const payments = [
-  { value: "UPI", label: "UPI" },
-  { value: "Card", label: "Credit / Debit Card" },
-  { value: "Pay Later", label: "Pay advance at venue visit" },
-];
-
 function Checkout() {
-  const { user } = useAuth();
-  const { cart, totals, couponCode, clearCart } = useCart();
-  const { addOrder } = useOrders();
+  const { user, token } = useAuth();
+  const { cart, totals, refreshCart } = useCart();
+  const { refreshOrders } = useOrders();
+  const { categories, loading: catalogLoading, error: catalogError } = useCatalog();
   const navigate = useNavigate();
-
   const [form, setForm] = useState({
-    name: user?.name || "",
-    phone: "",
-    email: user?.email || "",
-    eventType: categories.find((c) => c.slug === cart[0]?.category)?.slug || "wedding",
-    eventDate: "",
-    city: "",
-    venue: "",
-    guests: "",
-    notes: "",
-    payment: "UPI",
+    eventType: "", eventDate: "", city: "", venue: "", guests: "", notes: "", phone: "",
   });
   const [error, setError] = useState("");
-  const [placed, setPlaced] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  // Nothing to check out -> go to cart (unless we just placed the order)
-  if (cart.length === 0) return placed ? null : <Navigate to="/cart" replace />;
+  useEffect(() => {
+    if (!form.eventType && categories.length) {
+      const selectedId = cart.find((item) => item.eventCategoryId)?.eventCategoryId;
+      setForm((current) => ({ ...current, eventType: String(selectedId || categories[0].id) }));
+    }
+  }, [categories, cart, form.eventType]);
 
-  const update = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  if (cart.length === 0) return <Navigate to="/cart" replace />;
+  const update = (event) => setForm({ ...form, [event.target.name]: event.target.value });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const submit = async (event) => {
+    event.preventDefault();
     setError("");
+    if (!/^[6-9]\d{9}$/.test(form.phone)) return setError("Enter a valid 10-digit Indian mobile number.");
+    if (!form.eventDate || form.eventDate < tomorrowISO()) return setError("Choose an event date from tomorrow onwards.");
+    if (Number(form.guests) < 1) return setError("Enter the approximate number of guests.");
+    if (!form.eventType) return setError("Choose an event category.");
 
-    if (!/^[6-9]\d{9}$/.test(form.phone)) {
-      return setError("Enter a valid 10-digit Indian mobile number");
+    setBusy(true);
+    try {
+      const selectedCategory = categories.find((category) => category.id === Number(form.eventType));
+      const createdEvent = await api.createEvent(token, {
+        title: `${selectedCategory.name} event`,
+        description: [
+          `Contact: ${form.phone}`,
+          `City: ${form.city}`,
+          `Approximate guests: ${form.guests}`,
+          form.notes.trim(),
+        ].filter(Boolean).join("\n"),
+        category_id: Number(form.eventType),
+        event_date: new Date(`${form.eventDate}T12:00:00`).toISOString(),
+        venue: `${form.venue}, ${form.city}`,
+        budget: null,
+      });
+      const bookings = await api.checkout(token, createdEvent.id);
+      await Promise.all([refreshOrders(), refreshCart()]);
+      navigate(`/order-success/${bookings[0].id}`, {
+        replace: true,
+        state: { bookingCount: bookings.length, eventDate: form.eventDate, venue: form.venue },
+      });
+    } catch (requestError) {
+      setError(requestError.message || "Unable to place this booking.");
+    } finally {
+      setBusy(false);
     }
-    if (!form.eventDate || form.eventDate < tomorrowISO()) {
-      return setError("Please choose an event date from tomorrow onwards");
-    }
-    if (Number(form.guests) < 1) {
-      return setError("Enter the approximate number of guests");
-    }
-
-    const order = addOrder({
-      userEmail: user.email,
-      items: cart,
-      totals,
-      coupon: couponCode,
-      details: form,
-    });
-    // "placed" stops the empty-cart redirect above while we move to the success page
-    setPlaced(true);
-    navigate(`/order-success/${order.id}`, { replace: true });
-    clearCart();
   };
 
   return (
     <div className="page">
-      <h1 className="page-title">Checkout</h1>
+      <h1 className="page-title">Plan your booking</h1>
+      <p className="section-sub left">Your event will be created first, then each cart item will be sent as a booking request.</p>
+      {(catalogError || error) && <p className="error" role="alert">{error || catalogError}</p>}
       <div className="cart-layout">
-        <form className="checkout-form" onSubmit={handleSubmit}>
-          <h3>Contact details</h3>
-          <div className="form-grid">
-            <label>Full name
-              <input name="name" value={form.name} onChange={update} required />
-            </label>
-            <label>Mobile number
-              <input name="phone" value={form.phone} onChange={update} inputMode="numeric" maxLength={10} placeholder="9876543210" required />
-            </label>
-            <label className="span2">Email
-              <input type="email" name="email" value={form.email} onChange={update} required />
-            </label>
-          </div>
-
+        <form className="checkout-form" onSubmit={submit}>
           <h3>Event details</h3>
           <div className="form-grid">
             <label>Event type
-              <select name="eventType" value={form.eventType} onChange={update}>
-                {categories.map((c) => (
-                  <option key={c.slug} value={c.slug}>{c.name}</option>
-                ))}
+              <select name="eventType" value={form.eventType} onChange={update} required disabled={catalogLoading}>
+                {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
             </label>
             <label>Event date
               <input type="date" name="eventDate" min={tomorrowISO()} value={form.eventDate} onChange={update} required />
             </label>
             <label>City
-              <input name="city" value={form.city} onChange={update} placeholder="Hyderabad" required />
+              <input name="city" value={form.city} onChange={update} required />
             </label>
             <label>Approx. guests
               <input type="number" min="1" name="guests" value={form.guests} onChange={update} required />
             </label>
             <label className="span2">Venue / address
-              <input name="venue" value={form.venue} onChange={update} placeholder="Function hall name or home address" required />
+              <input name="venue" value={form.venue} onChange={update} required />
+            </label>
+            <label className="span2">Contact mobile
+              <input name="phone" inputMode="numeric" maxLength={10} value={form.phone} onChange={update} required />
             </label>
             <label className="span2">Special requests (optional)
-              <textarea name="notes" rows="3" value={form.notes} onChange={update} placeholder="Theme, colours, rituals, dietary needs..." />
+              <textarea name="notes" rows="3" value={form.notes} onChange={update} />
             </label>
           </div>
-
-          <h3>Payment method</h3>
-          <div className="radio-group">
-            {payments.map((p) => (
-              <label key={p.value} className={form.payment === p.value ? "selected" : ""}>
-                <input type="radio" name="payment" value={p.value} checked={form.payment === p.value} onChange={update} />
-                {p.label}
-              </label>
-            ))}
-          </div>
-          <p className="hint">Demo only — no real payment is processed.</p>
-
-          {error && <p className="error">{error}</p>}
-          <button className="btn full" type="submit">Confirm Booking • {formatINR(totals.total)}</button>
+          <p className="hint">Signed in as {user.full_name} ({user.email}). Payment is handled separately; the backend records booking requests and status.</p>
+          <button className="btn full" type="submit" disabled={busy || catalogLoading || categories.length === 0}>
+            {busy ? "Submitting…" : `Submit booking request · ${formatINR(totals.total)}`}
+          </button>
         </form>
 
         <aside className="summary">
           <h3>Your items</h3>
-          {cart.map((i) => (
-            <div key={i.id} className="row small">
-              <span>{i.emoji} {i.name} × {i.quantity}</span>
-              <span>{formatINR(i.price * i.quantity)}</span>
+          {cart.map((item) => (
+            <div key={item.id} className="row small">
+              <span>{item.name} × {item.quantity}</span>
+              <span>{formatINR(item.price * item.quantity)}</span>
             </div>
           ))}
           <hr />
-          <div className="row"><span>Subtotal</span><span>{formatINR(totals.subtotal)}</span></div>
-          {totals.discount > 0 && (
-            <div className="row green"><span>Discount {couponCode && `(${couponCode})`}</span><span>− {formatINR(totals.discount)}</span></div>
-          )}
-          <div className="row"><span>GST (18%)</span><span>{formatINR(totals.gst)}</span></div>
-          <div className="row total"><span>Total</span><span>{formatINR(totals.total)}</span></div>
+          <div className="row total"><span>Subtotal</span><span>{formatINR(totals.subtotal)}</span></div>
           <Link to="/cart" className="continue">← Edit cart</Link>
         </aside>
       </div>

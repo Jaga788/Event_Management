@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { Mail, MapPin, Phone } from "lucide-react";
-import categories from "../data/categories";
+import useCatalog from "../hooks/useCatalog";
 
 function Footer() {
+  const { categories } = useCatalog();
   return (
     <footer className="site-footer">
       <div className="footer-grid">

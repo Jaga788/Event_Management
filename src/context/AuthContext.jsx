@@ -1,46 +1,75 @@
-import { createContext, useContext, useState } from "react";
-import { load, save } from "../utils/format";
+import { createContext, useContext, useEffect, useState } from "react";
+import { api } from "../api";
 
 const AuthContext = createContext(null);
+const TOKEN_KEY = "eventora_access_token";
 
-// NOTE: This is a demo login that stores users in the browser (localStorage).
-// A real website needs a backend and hashed passwords.
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => load("eventora_user", null));
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(Boolean(localStorage.getItem(TOKEN_KEY)));
+  const [error, setError] = useState("");
 
-  const startSession = (u) => {
-    const session = { name: u.name, email: u.email };
-    setUser(session);
-    save("eventora_user", session);
-  };
-
-  const signup = (name, email, password) => {
-    const users = load("eventora_users", []);
-    const cleanEmail = email.trim().toLowerCase();
-    if (users.some((u) => u.email === cleanEmail)) {
-      return { success: false, message: "This email is already registered" };
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    const newUser = { name: name.trim(), email: cleanEmail, password };
-    save("eventora_users", [...users, newUser]);
-    startSession(newUser);
-    return { success: true };
+
+    let active = true;
+    api.me(token)
+      .then((currentUser) => {
+        if (active) setUser(currentUser);
+      })
+      .catch((requestError) => {
+        if (active) {
+          if (requestError.status === 401 || requestError.status === 403) {
+            localStorage.removeItem(TOKEN_KEY);
+            setToken(null);
+            setUser(null);
+          } else {
+            setError(requestError.message);
+          }
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [token]);
+
+  const login = async (email, password) => {
+    const result = await api.login(email.trim().toLowerCase(), password);
+    setError("");
+    localStorage.setItem(TOKEN_KEY, result.access_token);
+    setToken(result.access_token);
+    const currentUser = await api.me(result.access_token);
+    setUser(currentUser);
+    setLoading(false);
+    return currentUser;
   };
 
-  const login = (email, password) => {
-    const users = load("eventora_users", []);
-    const cleanEmail = email.trim().toLowerCase();
-    const found = users.find((u) => u.email === cleanEmail && u.password === password);
-    if (!found) return { success: false, message: "Wrong email or password" };
-    startSession(found);
-    return { success: true };
+  const signup = async (name, email, password) => {
+    await api.signup({
+      full_name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    return login(email, password);
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("eventora_user");
+    setToken(null);
+    setError("");
+    localStorage.removeItem(TOKEN_KEY);
   };
 
-  return <AuthContext.Provider value={{ user, signup, login, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, token, loading, error, signup, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

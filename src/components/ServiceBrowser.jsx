@@ -10,8 +10,11 @@ function ServiceBrowser({ services }) {
   const [maxPrice, setMaxPrice] = useState("all");
 
   const subs = useMemo(
-    () => ["All", ...subcategoryOrder.filter((s) => services.some((x) => x.sub === s))],
-    [services]
+    () => ["All", ...new Set([
+      ...subcategoryOrder.filter((s) => services.some((x) => x.sub === s)),
+      ...services.map((service) => service.sub).filter((value) => !subcategoryOrder.includes(value)),
+    ])],
+    [services],
   );
 
   const shown = useMemo(() => {

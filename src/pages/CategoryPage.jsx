@@ -1,12 +1,14 @@
 import { Link, useParams } from "react-router-dom";
-import categories from "../data/categories";
-import services from "../data/services";
+import useCatalog from "../hooks/useCatalog";
 import ServiceBrowser from "../components/ServiceBrowser";
 import NotFound from "./NotFound";
 
 function CategoryPage() {
   const { slug } = useParams();
+  const { categories, services, loading, error } = useCatalog();
   const category = categories.find((c) => c.slug === slug);
+  if (loading) return <div className="page empty-text" role="status">Loading this occasion…</div>;
+  if (error) return <div className="page error" role="alert">Could not load the catalog: {error}</div>;
   if (!category) return <NotFound />;
 
   const list = services.filter((s) => s.category === slug);

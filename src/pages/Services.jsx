@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import categories from "../data/categories";
-import services from "../data/services";
+import useCatalog from "../hooks/useCatalog";
 import ServiceBrowser from "../components/ServiceBrowser";
 
 function Services() {
+  const { categories, services, loading, error } = useCatalog();
   const [params, setParams] = useSearchParams();
   const q = (params.get("q") || "").trim();
   const cat = params.get("cat") || "all";
@@ -28,6 +28,8 @@ function Services() {
   return (
     <div className="page">
       <h1 className="page-title">{q ? `Search results for “${q}”` : "All Services"}</h1>
+      {loading && <p className="empty-text" role="status">Loading the latest packages and services…</p>}
+      {error && <p className="error" role="alert">Could not load the catalog: {error}</p>}
 
       <div className="chips">
         <button className={cat === "all" ? "active" : ""} onClick={() => setCat("all")}>All events</button>
@@ -39,7 +41,7 @@ function Services() {
       </div>
 
       {/* key resets the sub-category/sort filters when the event type or search changes */}
-      <ServiceBrowser key={`${cat}-${q}`} services={matches} />
+      {!loading && !error && <ServiceBrowser key={`${cat}-${q}`} services={matches} />}
     </div>
   );
 }

@@ -7,7 +7,7 @@ function CategoryCard({ category }) {
   return (
     <Link to={`/events/${category.slug}`} className="category-card">
       <div className="category-art" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
-        {!imageFailed ? (
+        {!imageFailed && category.image ? (
           <img
             src={category.image}
             alt=""
